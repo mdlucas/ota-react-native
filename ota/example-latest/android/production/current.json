@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.2",
   "sha256": "9073bc800ed8747110e62403a9626b4cd323a9918e4ce872304fcd093e9dfbec",
-  "minNativeVersion": "1.0",
+  "minNativeVersion": "1.2",
   "mandatory": false,
   "bundleUrl": "https://raw.githubusercontent.com/mdlucas/ota-react-native/main/ota/example-latest/android/production/bundle.jsbundle"
 }
