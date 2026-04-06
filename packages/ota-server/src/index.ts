@@ -1,6 +1,13 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
-import { fetchManifestFromGitHub, expandManifestUrl, githubManifestTemplate } from "./github.js";
+import {
+  expandManifestUrl,
+  fetchManifestFromGitHub,
+  githubManifestTemplate,
+  githubReadToken,
+} from "./github.js";
 import {
   bucket,
   createS3Client,
@@ -11,6 +18,9 @@ import {
 } from "./s3.js";
 import { s3Configured } from "./s3-env.js";
 import type { CurrentPointer, Platform, RegisterReleaseBody } from "./types.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+loadEnv({ path: path.join(__dirname, "..", ".env") });
 
 const PRESIGN_TTL = Number(process.env.PRESIGN_TTL_SECONDS ?? "900");
 
@@ -33,6 +43,7 @@ const fastify = Fastify({ logger: true });
 fastify.get("/health", async () => ({
   ok: true,
   githubTemplate: Boolean(githubManifestTemplate()),
+  githubReadTokenConfigured: Boolean(githubReadToken()),
   s3: s3Configured(),
 }));
 
@@ -52,7 +63,12 @@ fastify.get<{
     try {
       const manifest = await fetchManifestFromGitHub(url);
       if (!manifest) {
-        return reply.code(404).send({ error: "no release for this app/channel (GitHub 404)" });
+        return reply.code(404).send({
+          error: "no release for this app/channel (GitHub 404)",
+          manifestUrl: url,
+          hint:
+            "Open manifestUrl in a browser. If it 404s but the file exists on GitHub: wrong path/branch, or the repo is private (set OTA_GITHUB_TOKEN or GITHUB_TOKEN in ota-server .env). Note: the app must still be able to download bundleUrl (public URL or use another host for the bundle).",
+        });
       }
       return manifest;
     } catch (e) {

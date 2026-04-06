@@ -1,5 +1,7 @@
 # OTA monorepo (React Native + Node + S3/R2 ou GitHub raw)
 
+**Guia em português para testar ponta a ponta:** [README-TESTE.md](README-TESTE.md)
+
 Monorepo with a **self-hosted OTA server** (Fastify + optional S3 **or** GitHub `raw.githubusercontent.com`), a **publish CLI**, and a **React Native 0.77** library (`react-native-ota`) using the **New Architecture** (Turbo Module) for downloading a JS bundle, verifying **SHA-256**, persisting a pending path, and loading that file on the next cold start.
 
 ## Layout
@@ -18,7 +20,7 @@ Monorepo with a **self-hosted OTA server** (Fastify + optional S3 **or** GitHub 
 - Android: JDK 17, Android SDK (example targets compile SDK 35)
 - iOS: Xcode, CocoaPods
 - Para modo **S3/R2**: bucket e credenciais
-- Para modo **GitHub**: repositório **público** (URLs `raw.githubusercontent.com` são anônimas; repositório privado exige outra estratégia de download)
+- Para modo **GitHub**: o **manifest** pode ser lido mesmo em repo **privado** se o `ota-server` tiver `OTA_GITHUB_TOKEN` ou `GITHUB_TOKEN` (API Contents). O **bundle** (`bundleUrl`) continua a ser baixado pelo app sem token: use repo **público** para o `.jsbundle` ou hospede o bundle noutro URL público (S3/CDN).
 
 ## Server
 
@@ -52,7 +54,9 @@ OTA_GITHUB_MANIFEST_URL_TEMPLATE=https://raw.githubusercontent.com/SEU_USUARIO/S
 }
 ```
 
-4. `GET /health` mostra `githubTemplate: true` e `s3: false` quando estiver nesse modo.
+4. `GET /health` mostra `githubTemplate`, `githubReadTokenConfigured` e `s3`.
+
+Se `GET .../releases/...` devolver `GitHub 404`, o JSON de erro inclui `manifestUrl` — abre essa URL no browser. Se também der 404: caminho/branch errados, ou repo privado sem token no servidor. Repositório privado + sem token: o `raw.githubusercontent.com` devolve 404 para o servidor.
 
 Endpoints:
 
@@ -89,7 +93,7 @@ node packages/ota-cli/dist/cli.js publish \
   --platform android \
   --channel production \
   --bundle /tmp/index.android.bundle \
-  --version 1.0.0 \
+  --release-version 1.0.0 \
   --native-version 1.0
 ```
 
@@ -110,7 +114,7 @@ npx react-native bundle --platform android --dev false --entry-file index.js --b
 pnpm --filter ota-cli build
 node packages/ota-cli/dist/cli.js publish-github \
   --bundle /tmp/index.android.bundle \
-  --version 1.0.0 \
+  --release-version 1.0.0 \
   --native-version 1.0 \
   --github-owner SEU_USUARIO \
   --github-repo SEU_REPO \
@@ -130,7 +134,7 @@ Copie `dist-ota-upload/bundle.jsbundle` e `dist-ota-upload/current.json` para o 
 export GITHUB_TOKEN=ghp_xxxx
 node packages/ota-cli/dist/cli.js publish-github \
   --bundle /tmp/index.android.bundle \
-  --version 1.0.0 \
+  --release-version 1.0.0 \
   --native-version 1.0 \
   --github-owner SEU_USUARIO \
   --github-repo SEU_REPO \

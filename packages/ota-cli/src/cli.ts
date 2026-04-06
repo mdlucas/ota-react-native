@@ -1,11 +1,15 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Command } from "commander";
 import { githubGetContentSha, githubPutContent } from "./github-api.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+loadEnv({ path: path.join(__dirname, "..", ".env") });
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -50,7 +54,7 @@ program
   .requiredOption("--platform <ios|android>", "platform")
   .requiredOption("--channel <name>", "release channel", "production")
   .requiredOption("--bundle <path>", "path to bundle.jsbundle")
-  .requiredOption("--version <semver>", "release version label")
+  .requiredOption("--release-version <semver>", "release version label (not --version: reserved by CLI)")
   .requiredOption("--native-version <semver>", "min native app version (semver)")
   .option("--mandatory", "mark update mandatory", false)
   .action(async (opts) => {
@@ -63,7 +67,7 @@ program
     const sha256 = await sha256File(bundlePath);
     const appId = opts.app as string;
     const channel = opts.channel as string;
-    const version = opts.version as string;
+    const version = opts.releaseVersion as string;
 
     const bundleKey = `${prefixKey(appId, platform, channel)}/releases/${version}/bundle.jsbundle`;
     const manifest = {
@@ -132,7 +136,7 @@ program
     "Build current.json pointing at raw.githubusercontent.com and optionally push bundle + manifest via API"
   )
   .requiredOption("--bundle <path>", "path to bundle.jsbundle")
-  .requiredOption("--version <semver>", "release version label")
+  .requiredOption("--release-version <semver>", "release version label (not --version: reserved by CLI)")
   .requiredOption("--native-version <semver>", "min native app version (semver)")
   .requiredOption("--github-owner <login>", "GitHub user or org")
   .requiredOption("--github-repo <name>", "repository name")
@@ -142,9 +146,14 @@ program
   .requiredOption("--channel <name>", "channel segment", "production")
   .option("--root-prefix <path>", "root folder in repo", "ota")
   .option("--mandatory", "mark update mandatory", false)
-  .option("--out-dir <dir>", "write bundle.jsbundle + current.json to this folder")
+  .option(
+    "--out-dir <dir>",
+    "folder for bundle.jsbundle + current.json (default: packages/ota-cli/publish-out)"
+  )
+  .option("--skip-local-write", "do not write files to disk (only print JSON / --push)")
   .option("--push", "PUT files using GITHUB_TOKEN from environment")
   .action(async (opts) => {
+    console.error("[ota publish-github] starting…");
     const platform = opts.platform as string;
     if (platform !== "ios" && platform !== "android") {
       throw new Error("platform must be ios or android");
@@ -163,7 +172,7 @@ program
     const bundleUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${repoPathBase}/bundle.jsbundle`;
 
     const manifest = {
-      version: opts.version as string,
+      version: opts.releaseVersion as string,
       sha256,
       minNativeVersion: opts.nativeVersion as string,
       mandatory: Boolean(opts.mandatory),
@@ -172,12 +181,21 @@ program
     const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
     const bundleBytes = await readFile(bundlePath);
 
-    const outDir = opts.outDir as string | undefined;
+    const defaultLocalDir = path.join(__dirname, "..", "publish-out");
+    const skipLocal = Boolean((opts as { skipLocalWrite?: boolean }).skipLocalWrite);
+    const outDir = skipLocal
+      ? null
+      : path.resolve((opts.outDir as string | undefined) ?? defaultLocalDir);
+
     if (outDir) {
-      const dir = path.resolve(outDir);
-      await mkdir(dir, { recursive: true });
-      await writeFile(path.join(dir, "bundle.jsbundle"), bundleBytes);
-      await writeFile(path.join(dir, "current.json"), manifestJson, "utf8");
+      await mkdir(outDir, { recursive: true });
+      const bundleOut = path.join(outDir, "bundle.jsbundle");
+      const jsonOut = path.join(outDir, "current.json");
+      await writeFile(bundleOut, bundleBytes);
+      await writeFile(jsonOut, manifestJson, "utf8");
+      console.error(`[ota publish-github] wrote:\n  ${bundleOut}\n  ${jsonOut}`);
+    } else {
+      console.error("[ota publish-github] skipping local files (--skip-local-write)");
     }
 
     const serverTemplate = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${root}/{appId}/{platform}/{channel}/current.json`;
@@ -212,8 +230,11 @@ program
     if (opts.push) {
       const token = process.env.GITHUB_TOKEN?.trim();
       if (!token) {
-        throw new Error("GITHUB_TOKEN is required for --push");
+        throw new Error(
+          "GITHUB_TOKEN is required for --push. Put it in packages/ota-cli/.env or run: export GITHUB_TOKEN=ghp_..."
+        );
       }
+      console.log(`Pushing to ${owner}/${repo}@${branch} …`);
       const bundleRepoPath = `${repoPathBase}/bundle.jsbundle`;
       const manifestRepoPath = `${repoPathBase}/current.json`;
       const b64Bundle = bundleBytes.toString("base64");
@@ -247,6 +268,7 @@ program
   });
 
 program.parseAsync(process.argv).catch((e) => {
-  console.error(e instanceof Error ? e.message : e);
+  console.error("[ota]", e instanceof Error ? e.message : e);
+  if (e instanceof Error && e.stack) console.error(e.stack);
   process.exit(1);
 });

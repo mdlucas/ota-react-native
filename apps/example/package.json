@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "bundle:android": "react-native bundle --platform android --dev false --entry-file index.js --bundle-output ../../tmp/index.android.bundle",
+    "bundle:ios": "react-native bundle --platform ios --dev false --entry-file index.js --bundle-output ../../tmp/index.ios.bundle",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
