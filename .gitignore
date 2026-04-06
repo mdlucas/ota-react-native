@@ -1,0 +1,13 @@
+node_modules
+dist
+.turbo
+*.log
+.env
+.env.local
+.DS_Store
+apps/example/ios/Pods
+apps/example/ios/build
+apps/example/android/app/build
+apps/example/android/build
+apps/example/.cxx
+*.jsbundle

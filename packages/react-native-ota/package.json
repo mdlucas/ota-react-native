@@ -1,0 +1,40 @@
+{
+  "name": "react-native-ota",
+  "version": "0.1.0",
+  "description": "Self-hosted OTA JS bundle updates for React Native (Turbo Module)",
+  "main": "src/index.ts",
+  "react-native": "src/index.ts",
+  "source": "src/index.ts",
+  "license": "MIT",
+  "files": [
+    "src",
+    "android",
+    "ios",
+    "react-native.config.js",
+    "react-native-ota.podspec",
+    "!android/build",
+    "!ios/build"
+  ],
+  "scripts": {
+    "lint": "tsc --noEmit -p tsconfig.json || true",
+    "clean": "rm -rf android/build ios/build"
+  },
+  "codegenConfig": {
+    "name": "RNOtaSpec",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.reactnativeota"
+    }
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": ">=0.76.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "react": "18.3.1",
+    "react-native": "0.77.1",
+    "typescript": "^5.7.2"
+  }
+}
